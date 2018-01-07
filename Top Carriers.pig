@@ -1,0 +1,15 @@
+a = LOAD 's3://piglatinscript/Input/exercise2.csv' USING PigStorage(',') AS (year:int, Month:int, DayofMonth:int, DayofWeek:int, DepTime:int, CRSDepTime:int, ArrTime:int, CRSArrTime:int, UniqueCarrier:chararray, FlightNum:int, TailNum:chararray, ActualElapsedTime:int, CRSElapsedTime:int, Airtime:int, ArrDelay:int, DepDelay:int, Origin:chararray, Dest:chararray, Distance:int, TaxiIn:int, TaxiOut:int, Cancelled:Boolean, CancellationCode:chararray, Diverted:int, CarrierDelay:int, WeatherDelay:int, NASDelay:int, SecurityDelay:int, LateAircraftDelay:int);                                                                                                /* loading the input file from the hdfs into pig relation */
+b = LOAD 's3://piglatinscript/Input/carriers.csv' USING PigStorage(',') AS (Code:chararray, Description:chararray);    /* loading the another input file from the hdfs into pig relation */
+
+b_mod = FOREACH b GENERATE REPLACE (Code,'\\"', '') AS Code, Description;                                              /* Replacing the \\' by nothing in the code column of the carriers relation */ 
+a_mod = FOREACH a GENERATE UniqueCarrier, FlightNum;                                                                   /* This is the projection of the columns from the relation */
+carrier_group = GROUP a_mod BY UniqueCarrier;                                                                          /* Grouping the a-mod by UniqueCarrier */
+car_count = FOREACH carrier_group GENERATE group, COUNT(a_mod) AS count1;                                              /* Carrier and the their count  */ 
+sorted = ORDER car_count BY count1 DESC;                                                                               /* Ordering the carrier by their count in descending order */
+top_10 = LIMIT sorted 10;                                                                                              /* Limiting to the top 10 tuples in the relation */
+joinab = JOIN top_10 BY group, b_mod BY Code;                                                                          /* Joining the top_10 relation by group with the carriers relation by key */
+DESCRIBE joinab;                                                                                                       /* Displays Schema for the joinab relation */ 
+re_sort = ORDER joinab BY count1 DESC;                                                                                 /* Ordering the joined relation with count in descending order */
+DESCRIBE re_sort;                                                                                                      /* Shows the schema for the re_sort relation */
+result = FOREACH re_sort GENERATE Description;                                                                         /* Projection of the top 10 popular carrier names */
+STORE result INTO 's3://piglatinscript/Output/TopNames';                                                               /* Store the result to the S3 bucket in the output folder with the filename TopNames */
